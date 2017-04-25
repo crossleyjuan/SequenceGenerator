@@ -160,53 +160,59 @@ namespace BizagiCL
             // Simple check in the cache
             if (!m_odKeys.TryGetValue(sGeneratorName, out _oIdObj))
             {
-                m_oRWLock.AcquireWriterLock(10000);
-                // Double check in the cache to make it thread safe
-                if (!m_odKeys.TryGetValue(sGeneratorName, out _oIdObj))
+                try
                 {
-                    #region Create the key
-                    // The key does not exist in the cache, 
-                    // then we need to create the key and start the object
-                    int iNumRetries = 0;
-                    bool bKeyGenerated = false;
-
-                    // Attempt to create the key object mas 100 times
-                    while (!bKeyGenerated)
+                    m_oRWLock.AcquireWriterLock(10000);
+                    // Double check in the cache to make it thread safe
+                    if (!m_odKeys.TryGetValue(sGeneratorName, out _oIdObj))
                     {
-                        try
+                        #region Create the key
+                        // The key does not exist in the cache, 
+                        // then we need to create the key and start the object
+                        int iNumRetries = 0;
+                        bool bKeyGenerated = false;
+
+                        // Attempt to create the key object mas 100 times
+                        while (!bKeyGenerated)
                         {
-                            // Generate the key and add it in the cache
-                            long lId = CreateKey(sGeneratorName);
-                            // Create object with cached metadata
-                            _oIdObj = new KeyObject(sGeneratorName, lId);
-
-                            m_odKeys.Add(sGeneratorName, _oIdObj);
-
-                            // Set flag to true in order to end the loop
-                            bKeyGenerated = true;
-                        }
-                        catch (Exception e)
-                        {
-                            // When an error is generated, internally the connection restarts, so the next request
-                            // will get a new connection so we can retry again
-                            iNumRetries++;
-                            bKeyGenerated = false;
-
-                            // Retry max 100 times, if it still has db connection failures
-                            // must end loop and throw exception to outer modules
-                            if (iNumRetries >= 100)
+                            try
                             {
-                                throw;
+                                // Generate the key and add it in the cache
+                                long lId = CreateKey(sGeneratorName);
+                                // Create object with cached metadata
+                                _oIdObj = new KeyObject(sGeneratorName, lId);
+
+                                m_odKeys.Add(sGeneratorName, _oIdObj);
+
+                                // Set flag to true in order to end the loop
+                                bKeyGenerated = true;
                             }
+                            catch (Exception e)
+                            {
+                                // When an error is generated, internally the connection restarts, so the next request
+                                // will get a new connection so we can retry again
+                                iNumRetries++;
+                                bKeyGenerated = false;
 
-                            // Sleep 50 milliseconds the thread ... to let the db server do other stuff
-                            Thread.Sleep(50);
+                                // Retry max 100 times, if it still has db connection failures
+                                // must end loop and throw exception to outer modules
+                                if (iNumRetries >= 100)
+                                {
+                                    throw;
+                                }
+
+                                // Sleep 50 milliseconds the thread ... to let the db server do other stuff
+                                Thread.Sleep(50);
+                            }
                         }
-                    }
-                    #endregion
+                        #endregion
 
+                    }
                 }
-                m_oRWLock.ReleaseWriterLock();
+                finally
+                {
+                    m_oRWLock.ReleaseWriterLock();
+                }
             }
             return _oIdObj.NextId();
         }
@@ -261,7 +267,7 @@ namespace BizagiCL
              */
             public long NextId()
             {
-                long _iResp = -1;
+                long lResp = -1;
                 lock (this)
                 {
                     #region Generate Next id
@@ -284,7 +290,7 @@ namespace BizagiCL
                             }
 
                             // Update counters
-                            _iResp = m_iId;
+                            lResp = m_iId;
                             m_iId++;
                             m_iUpdates++;
 
@@ -317,7 +323,7 @@ namespace BizagiCL
                     }
                     #endregion
                 }
-                return _iResp;
+                return lResp;
             }
 
             private long InitializeKey()

@@ -32,7 +32,7 @@ namespace TestApp
         {
             TestSimple();
             TestFullLoad();
-            TestChangeDate();
+            //TestChangeDate();
             TestConcurrency();
         }
 
@@ -94,28 +94,49 @@ namespace TestApp
             Debug.Assert(val1 == (val2 -1), "The val2 should be val1 + 1");
         }
 
-        private static System.Collections.Generic.SortedSet<long> _previousIds = new SortedSet<long>();
+        private static System.Collections.Generic.List<long> _previousIds = new List<long>();
 
         private const int IDS = 10000;
         private static void Execute()
         {
+            List<long> ids = new List<long>();
             for (int x = 0; x < IDS; x++)
             {
                 long id = KeyGen.GetKey("TESTX");
-                lock (_previousIds)
+                if (id == 0)
                 {
-                    if (!_previousIds.Add(id))
-                    {
-                        throw new ApplicationException("Hey!!!! I seen this guy before!");
-                    }
+                    throw new ApplicationException("id is 0");
                 }
+                ids.Add(id);
+            }
+            lock (_previousIds)
+            {
+                _previousIds.AddRange(ids);
             }
         }
 
+        class TempComparer : IComparer<long>
+        {
+            public int Compare(long x, long y)
+            {
+                if (x < y)
+                {
+                    return -1;
+                }
+                else if (x == y)
+                {
+                    return 0;
+                }
+                else
+                {
+                    return 1;
+                }
+            }
+        }
         private static void TestConcurrency()
         {
             List<Thread> list = new List<Thread>();
-            for (int x = 0; x < 10; x++) {
+            for (int x = 0; x < 100; x++) {
                 Thread t = new Thread(Execute);
                 list.Add(t);
                 t.Start();
@@ -124,6 +145,21 @@ namespace TestApp
             foreach (Thread t in list)
             {
                 t.Join();
+            };
+
+            // Check for duplicates
+            SortedSet<long> test = new SortedSet<long>(new TempComparer());
+            for (var x = 0; x < _previousIds.Count; x++)
+            {
+                long l = _previousIds[x];
+                if (l == 0)
+                {
+                    throw new ApplicationException(string.Format("{0} already existed.", l));
+                }
+                if (!test.Add(l))
+                {
+                    throw new ApplicationException(string.Format("{0} already existed.", l));
+                }
             }
         }
     }

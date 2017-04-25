@@ -144,7 +144,7 @@ namespace SequenceGenerator
 
         public long IncrementSequence(int inc)
         {
-            Lock();
+//            Lock();
             Data data = internalRead();
             if (data == null)
             {
@@ -155,7 +155,7 @@ namespace SequenceGenerator
                 data.value += inc;
                 internalWrite(data.value, data.date);
             }
-            Release();
+ //           Release();
             return data.value;
         }
 
